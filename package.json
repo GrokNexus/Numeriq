@@ -1,0 +1,26 @@
+{
+  "name": "numeriq",
+  "version": "1.0.0",
+  "description": "A local pilot for connected planning and recast analysis.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "server": "node --disable-warning=ExperimentalWarning src/server/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
