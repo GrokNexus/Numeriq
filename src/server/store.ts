@@ -2,9 +2,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import type { Account, AccountKind, Workspace } from '../shared/types.ts';
 import { parseMoney } from '../shared/calculations.ts';
+import { CatalogStore } from './catalog.ts';
 
 export class Store {
   db: DatabaseSync;
+  catalog: CatalogStore;
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
@@ -17,6 +19,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS commentary (account_id TEXT PRIMARY KEY REFERENCES accounts(id), body TEXT NOT NULL);
     `);
     if (this.db.prepare('SELECT COUNT(*) AS count FROM accounts').get()?.count === 0) this.seed();
+    this.catalog = new CatalogStore(this.db);
   }
 
   seed() {
@@ -75,14 +78,32 @@ export class Store {
   }
 
   addAccount(name: string, kind: AccountKind) {
-    this.db.prepare('INSERT INTO accounts VALUES (?, ?, ?)').run(randomUUID(), name, kind);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const id = randomUUID();
+      this.db.prepare('INSERT INTO accounts VALUES (?, ?, ?)').run(id, name, kind);
+      this.db.prepare('INSERT INTO catalog_members VALUES (?,?,?)').run(id, 'pilot-accounts', name);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   addDepartment(name: string) {
-    this.db.prepare('INSERT INTO departments VALUES (?, ?, 0)').run(randomUUID(), name);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const id = randomUUID();
+      this.db.prepare('INSERT INTO departments VALUES (?, ?, 0)').run(id, name);
+      this.db.prepare('INSERT INTO catalog_members VALUES (?,?,?)').run(id, 'pilot-departments', name);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   rename(kind: 'accounts' | 'departments', id: string, name: string) {
     const query = kind === 'accounts' ? 'UPDATE accounts SET name=? WHERE id=?' : 'UPDATE departments SET name=? WHERE id=?';
-    if (this.db.prepare(query).run(name, id).changes !== 1) throw new Error('Member not found');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      if (this.db.prepare(query).run(name, id).changes !== 1) throw new Error('Member not found');
+      const dimension = kind === 'accounts' ? 'pilot-accounts' : 'pilot-departments';
+      if (this.db.prepare('UPDATE catalog_members SET name=? WHERE dimension_id=? AND id=?').run(name, dimension, id).changes !== 1) throw new Error('Member not found');
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   setPlan(accountId: string, departmentId: string, amount: string | null) {
     if (!this.db.prepare('SELECT id FROM accounts WHERE id=?').get(accountId) ||

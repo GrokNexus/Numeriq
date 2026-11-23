@@ -53,3 +53,30 @@ test('API accepts the configured Codespaces origin but rejects other origins', a
     else process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN = previousDomain;
   }
 });
+
+test('catalog API publishes and retrieves a hierarchy and rejects cycles', async () => {
+  const store = new Store(':memory:');
+  const server = createApi(store);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  const url = `http://127.0.0.1:${address.port}/api/catalog`;
+  const post = (path: string, body: object) => fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    const created = await post('/hierarchies', { dimensionId: 'pilot-departments', name: 'Management' });
+    assert.equal(created.status, 200);
+    const hierarchy = store.catalog.catalog()[0].models[0].dimensions.find((dim) => dim.id === 'pilot-departments')!.hierarchies[0];
+    const valid = [{ memberId: 'retail', parentId: null }, { memberId: 'enterprise', parentId: 'retail' }];
+    assert.equal((await post('/versions', { hierarchyId: hierarchy.id, expectedVersion: 0, nodes: valid })).status, 200);
+    const cyclic = [{ memberId: 'retail', parentId: 'enterprise' }, { memberId: 'enterprise', parentId: 'retail' }];
+    const rejected = await post('/versions', { hierarchyId: hierarchy.id, expectedVersion: 1, nodes: cyclic });
+    assert.equal(rejected.status, 400);
+    assert.match((await rejected.json() as { error: string }).error, /cycle/);
+    const catalog = await (await fetch(url)).json() as ReturnType<typeof store.catalog.catalog>;
+    const versions = catalog[0].models[0].dimensions.find((dim) => dim.id === 'pilot-departments')!.hierarchies[0].versions;
+    assert.equal(versions.length, 1);
+    assert.equal(versions[0].nodes.find((node) => node.memberId === 'enterprise')?.parentId, 'retail');
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    store.close();
+  }
+});

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { Account, AccountKind, Department, Workspace } from '../shared/types.ts';
 import { allocate } from '../shared/calculations.ts';
+import CatalogStudio from './Catalog.tsx';
 
-type View = 'planning' | 'model';
+type View = 'planning' | 'model' | 'catalog';
 type Basis = 'current' | 'original';
 
 const paths: Record<string, ReactNode> = {
@@ -97,6 +98,7 @@ function App() {
       <nav className="side-nav" aria-label="Workspace navigation">
         <button className={view === 'planning' ? 'nav-item active' : 'nav-item'} onClick={() => setView('planning')}><Icon name="grid"/><span>Planning studio</span><span className="nav-active-dot"/></button>
         <button className={view === 'model' ? 'nav-item active' : 'nav-item'} onClick={() => setView('model')}><Icon name="layers"/><span>Model &amp; dimensions</span></button>
+        <button className={view === 'catalog' ? 'nav-item active' : 'nav-item'} onClick={() => setView('catalog')}><Icon name="layers"/><span>Model catalog</span></button>
       </nav>
       <div className="sidebar-bottom">
         <div className="sidebar-callout"><span className="callout-icon"><Icon name="spark" size={15}/></span><strong>Built for clarity.</strong><p>One place to bring your plan and your business together.</p></div>
@@ -104,7 +106,7 @@ function App() {
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumbs"><span>Workspace</span><Icon name="chevron" size={13}/><strong>{view === 'planning' ? 'Planning studio' : 'Model & dimensions'}</strong></div><div className="top-actions"><span className="local-badge"><span/> LOCAL PILOT</span><span className="top-avatar">N</span></div></header>
+      <header className="topbar"><div className="breadcrumbs"><span>Workspace</span><Icon name="chevron" size={13}/><strong>{view === 'planning' ? 'Planning studio' : view === 'model' ? 'Model & dimensions' : 'Model catalog'}</strong></div><div className="top-actions"><span className="local-badge"><span/> LOCAL PILOT</span><span className="top-avatar">N</span></div></header>
       <main className="content">
         {error && <div className="alert error" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
         {notice && <div className="alert success" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss message">×</button></div>}
@@ -134,7 +136,7 @@ function App() {
             <Commentary account={selectedRow?.account} current={selectedRow ? workspace.commentary[selectedRow.account.id] ?? '' : ''} busy={busy} save={(accountId, body) => mutate('commentary', 'PUT', { accountId, body }, 'Commentary saved')} />
           </div>
           <div className="page-footnote">NUMERIQ PILOT <span>·</span> Local sample workspace. Not for sensitive or production data.</div>
-        </> : <ModelStudio workspace={workspace} busy={busy} mutate={mutate} />}
+        </> : view === 'model' ? <ModelStudio workspace={workspace} busy={busy} mutate={mutate} /> : <CatalogStudio />}
       </main>
     </div>
   </div>;
